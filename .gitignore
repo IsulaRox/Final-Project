@@ -1,0 +1,53 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Environment variables / secrets
+.env
+.env.*
+!.env.example
+
+# Jupyter
+.ipynb_checkpoints/
+
+# VS Code
+.vscode/
+
+# ML generated models
+*.pkl
+*.pickle
+*.joblib
+
+# Logs
+*.log
+
+# ========================================
+# ML DATASETS - DO NOT PUSH TO GITHUB
+# ========================================
+
+# Dataset folders
+ML/datasset/
+ML/dataset/
+ML/data/
+ML/datasets/
+
+# Dataset archive files
+*.zip
+*.csv
+*.xlsx
+*.xls
+*.parquet
+*.json
+
+# Node.js
+node_modules/
+
+# Frontend builds
+dist/
+build/
