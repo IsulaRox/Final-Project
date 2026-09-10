@@ -6,8 +6,8 @@ import pandas as pd
 # 1. Dataset Paths
 # ==========================================
 
-train_path = "datasset/train"
-test_path = "datasset/test"
+train_path = "dataset/train"
+test_path = "dataset/test"
 
 csv_path = "csv"
 
