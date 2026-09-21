@@ -1,0 +1,298 @@
+import os
+import pandas as pd
+from sklearn.model_selection import train_test_split
+
+
+# ==========================================
+# 1. Input File
+# ==========================================
+
+input_file = "csv/standardized_dataset.csv"
+
+
+# ==========================================
+# 2. Read Dataset
+# ==========================================
+
+print("\n==========================================")
+print("READING STANDARDIZED DATASET")
+print("==========================================")
+
+df = pd.read_csv(input_file)
+
+print("Total records:", len(df))
+
+
+# ==========================================
+# 3. Check Required Columns
+# ==========================================
+
+required_columns = [
+    "image_path",
+    "label"
+]
+
+for column in required_columns:
+
+    if column not in df.columns:
+
+        print(
+            f"ERROR: '{column}' column is missing."
+        )
+
+        exit()
+
+
+# ==========================================
+# 4. Remove Missing Values
+# ==========================================
+
+df = df.dropna(
+    subset=[
+        "image_path",
+        "label"
+    ]
+)
+
+
+# ==========================================
+# 5. Remove Duplicate Images
+# ==========================================
+
+before = len(df)
+
+df = df.drop_duplicates(
+    subset=["image_path"]
+)
+
+after = len(df)
+
+print(
+    "Duplicate records removed:",
+    before - after
+)
+
+
+# ==========================================
+# 6. Standardize Labels
+# ==========================================
+
+def standardize_label(label):
+
+    label = str(label).strip().lower()
+
+    if label in [
+        "glioma",
+        "glioma tumor"
+    ]:
+        return "Glioma Tumor"
+
+    elif label in [
+        "meningioma",
+        "meningioma tumor"
+    ]:
+        return "Meningioma Tumor"
+
+    elif label in [
+        "no-tumor",
+        "no tumor",
+        "notumor",
+        "normal brain"
+    ]:
+        return "No-tumor"
+
+    elif label in [
+        "pituitary",
+        "pituitary tumor"
+    ]:
+        return "Pituitary Tumor"
+
+    else:
+        return label
+
+
+df["label"] = df["label"].apply(
+    standardize_label
+)
+
+
+# ==========================================
+# 7. Check Class Distribution
+# ==========================================
+
+print("\n==========================================")
+print("CLASS DISTRIBUTION")
+print("==========================================")
+
+print(
+    df["label"].value_counts()
+)
+
+
+# ==========================================
+# 8. Create 80% Training
+# ==========================================
+
+train_df, temp_df = train_test_split(
+    df,
+    test_size=0.20,
+    random_state=42,
+    stratify=df["label"]
+)
+
+
+# ==========================================
+# 9. Create 10% Validation + 10% Testing
+# ==========================================
+
+validation_df, test_df = train_test_split(
+    temp_df,
+    test_size=0.50,
+    random_state=42,
+    stratify=temp_df["label"]
+)
+
+
+# ==========================================
+# 10. Add Split Names
+# ==========================================
+
+train_df = train_df.copy()
+validation_df = validation_df.copy()
+test_df = test_df.copy()
+
+train_df["dataset"] = "train"
+
+validation_df["dataset"] = "validation"
+
+test_df["dataset"] = "test"
+
+
+# ==========================================
+# 11. Combine All Splits
+# ==========================================
+
+final_df = pd.concat(
+    [
+        train_df,
+        validation_df,
+        test_df
+    ],
+    ignore_index=True
+)
+
+
+# ==========================================
+# 12. Shuffle Dataset
+# ==========================================
+
+final_df = final_df.sample(
+    frac=1,
+    random_state=42
+).reset_index(
+    drop=True
+)
+
+
+# ==========================================
+# 13. Save standardized_dataset.csv
+# ==========================================
+
+final_df.to_csv(
+    input_file,
+    index=False
+)
+
+
+# ==========================================
+# 14. Display Results
+# ==========================================
+
+total = len(final_df)
+
+train_count = len(train_df)
+validation_count = len(validation_df)
+test_count = len(test_df)
+
+
+print("\n==========================================")
+print("FINAL DATASET")
+print("==========================================")
+
+print(
+    f"Total:       {total}"
+)
+
+print(
+    f"Training:    {train_count} "
+    f"({train_count / total * 100:.2f}%)"
+)
+
+print(
+    f"Validation:  {validation_count} "
+    f"({validation_count / total * 100:.2f}%)"
+)
+
+print(
+    f"Testing:     {test_count} "
+    f"({test_count / total * 100:.2f}%)"
+)
+
+
+# ==========================================
+# 15. Split × Class Distribution
+# ==========================================
+
+print("\n==========================================")
+print("CLASS DISTRIBUTION BY SPLIT")
+print("==========================================")
+
+print(
+    pd.crosstab(
+        final_df["dataset"],
+        final_df["label"]
+    )
+)
+
+
+# ==========================================
+# 16. Final Dataset Distribution
+# ==========================================
+
+print("\n==========================================")
+print("DATASET SPLIT")
+print("==========================================")
+
+print(
+    final_df["dataset"].value_counts()
+)
+
+
+# ==========================================
+# 17. Final Labels
+# ==========================================
+
+print("\n==========================================")
+print("LABELS")
+print("==========================================")
+
+print(
+    final_df["label"].value_counts()
+)
+
+
+# ==========================================
+# 18. Finished
+# ==========================================
+
+print("\n==========================================")
+print("SUCCESS")
+print("==========================================")
+
+print(
+    "Updated file:"
+)
+
+print(
+    os.path.abspath(input_file)
+)
