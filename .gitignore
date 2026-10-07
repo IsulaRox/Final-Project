@@ -37,6 +37,16 @@ ML/dataset/
 ML/data/
 ML/datasets/
 
+# ========================================
+# ML GENERATED FILES - DO NOT PUSH
+# ========================================
+
+# PNG files inside ML
+ML/**/*.png
+
+# TXT files inside ML
+ML/**/*.txt
+
 # Dataset archive files
 *.zip
 *.csv
@@ -44,6 +54,14 @@ ML/datasets/
 *.xls
 *.parquet
 *.json
+
+# ML generated models
+*.keras
+*.h5
+*.hdf5
+*.pkl
+*.pickle
+*.joblib
 
 # Node.js
 node_modules/
