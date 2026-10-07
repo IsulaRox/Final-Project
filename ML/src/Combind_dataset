@@ -1,0 +1,298 @@
+import os
+import pandas as pd
+
+
+# ==========================================
+# 1. CSV Paths
+# ==========================================
+
+csv_path = "csv"
+
+input_file = os.path.join(
+    csv_path,
+    "combined_dataset.csv"
+)
+
+output_file = os.path.join(
+    csv_path,
+    "standardized_dataset.csv"
+)
+
+
+# ==========================================
+# 2. Check Input CSV
+# ==========================================
+
+print("\n==========================================")
+print("CHECKING INPUT CSV")
+print("==========================================")
+
+print(
+    "Input file:"
+)
+
+print(
+    os.path.abspath(input_file)
+)
+
+
+if not os.path.exists(input_file):
+
+    print("\nERROR: combined_dataset.csv was not found!")
+
+    print(
+        "Expected path:"
+    )
+
+    print(
+        os.path.abspath(input_file)
+    )
+
+    exit()
+
+
+# ==========================================
+# 3. Read Combined Dataset
+# ==========================================
+
+print("\n==========================================")
+print("READING COMBINED DATASET")
+print("==========================================")
+
+df = pd.read_csv(input_file)
+
+print(
+    "Total records:",
+    len(df)
+)
+
+print(
+    "Total columns:",
+    len(df.columns)
+)
+
+
+# ==========================================
+# 4. Check Original Labels
+# ==========================================
+
+print("\n==========================================")
+print("ORIGINAL LABELS")
+print("==========================================")
+
+print(
+    df["label"].value_counts()
+)
+
+
+# ==========================================
+# 5. Standardize Labels
+# ==========================================
+
+def standardize_label(label):
+
+    # Convert label to string
+    label = str(label).strip()
+
+    # Convert to lowercase for comparison
+    label_lower = label.lower()
+
+    # --------------------------------------
+    # Glioma
+    # --------------------------------------
+
+    if label_lower in [
+        "glioma",
+        "glioma tumor"
+    ]:
+
+        return "Glioma Tumor"
+
+
+    # --------------------------------------
+    # Meningioma
+    # --------------------------------------
+
+    elif label_lower in [
+        "meningioma",
+        "meningioma tumor"
+    ]:
+
+        return "Meningioma Tumor"
+
+
+    # --------------------------------------
+    # No Tumor / Normal Brain
+    # --------------------------------------
+
+    elif label_lower in [
+        "no-tumor",
+        "no tumor",
+        "notumor",
+        "normal brain"
+    ]:
+
+        return "No-tumor"
+
+
+    # --------------------------------------
+    # Pituitary
+    # --------------------------------------
+
+    elif label_lower in [
+        "pituitary",
+        "pituitary tumor"
+    ]:
+
+        return "Pituitary Tumor"
+
+
+    # --------------------------------------
+    # Unknown Label
+    # --------------------------------------
+
+    else:
+
+        return label
+
+
+# Apply standardization
+
+df["label"] = df["label"].apply(
+    standardize_label
+)
+
+
+# ==========================================
+# 6. Standardized Label Distribution
+# ==========================================
+
+print("\n==========================================")
+print("STANDARDIZED LABELS")
+print("==========================================")
+
+print(
+    df["label"].value_counts()
+)
+
+
+# ==========================================
+# 7. Check Unique Labels
+# ==========================================
+
+print("\n==========================================")
+print("FINAL UNIQUE LABELS")
+print("==========================================")
+
+print(
+    df["label"].unique()
+)
+
+
+# ==========================================
+# 8. Save Standardized Dataset
+# ==========================================
+
+df.to_csv(
+    output_file,
+    index=False
+)
+
+
+# ==========================================
+# 9. First 10 Records
+# ==========================================
+
+print("\n==========================================")
+print("FIRST 10 RECORDS")
+print("==========================================")
+
+print(
+    df.head(10)
+)
+
+
+# ==========================================
+# 10. Dataset Distribution
+# ==========================================
+
+if "dataset" in df.columns:
+
+    print("\n==========================================")
+    print("DATASET DISTRIBUTION")
+    print("==========================================")
+
+    print(
+        df["dataset"].value_counts()
+    )
+
+
+# ==========================================
+# 11. Missing Values
+# ==========================================
+
+print("\n==========================================")
+print("MISSING VALUES")
+print("==========================================")
+
+print(
+    df.isnull().sum()
+)
+
+
+# ==========================================
+# 12. Final Information
+# ==========================================
+
+print("\n==========================================")
+print("STANDARDIZED DATASET INFORMATION")
+print("==========================================")
+
+print(
+    "Total images:",
+    len(df)
+)
+
+print(
+    "Total classes:",
+    df["label"].nunique()
+)
+
+
+# ==========================================
+# 13. Final CSV Location
+# ==========================================
+
+print("\n==========================================")
+print("OUTPUT CSV FILE")
+print("==========================================")
+
+print(
+    os.path.abspath(output_file)
+)
+
+
+# ==========================================
+# 14. Final Message
+# ==========================================
+
+print("\n==========================================")
+print("LABEL STANDARDIZATION COMPLETED")
+print("==========================================")
+
+print("\nFinal classes:")
+
+for label in sorted(df["label"].unique()):
+
+    print(
+        "-",
+        label
+    )
+
+print("\nOutput file:")
+
+print(
+    os.path.abspath(output_file)
+)
+
+print("\nDone!")

@@ -1,0 +1,163 @@
+# ============================================================
+# VGG16 - PERFORMANCE + EFFICIENCY ONLY (lean version)
+# - If a saved model exists -> loads it (no training)
+# - Otherwise -> trains once (needed to get results), saves it
+# - Prints only: performance metrics + efficiency metrics
+# ============================================================
+import os
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
+os.environ["TF_NUM_INTRAOP_THREADS"] = "2"
+os.environ["TF_NUM_INTEROP_THREADS"] = "2"
+os.environ["OMP_NUM_THREADS"] = "2"
+os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
+
+import time
+import numpy as np
+import pandas as pd
+import tensorflow as tf
+from sklearn.metrics import (accuracy_score, precision_score, recall_score,
+                             f1_score, classification_report)
+from tensorflow.keras.applications import VGG16
+from tensorflow.keras   .applications.vgg16 import preprocess_input
+from tensorflow.keras.layers import Input, GlobalAveragePooling2D, Dense, Dropout
+from tensorflow.keras.models import Model, load_model
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
+
+# ---------------- Config (same as your VGG16 script) ----------------
+CSV_FILE = "csv/standardized_dataset.csv"
+IMAGE_SIZE = (224, 224)
+BATCH_SIZE = 4
+EPOCHS = 20
+LEARNING_RATE = 0.0001
+SEED = 42
+MODEL_PATH = "models/vgg16_brain_tumor.keras"   # same file your full VGG16 script saves
+os.makedirs("models", exist_ok=True)
+np.random.seed(SEED); tf.random.set_seed(SEED)
+
+# ---------------- Data ----------------
+CLASS_NAMES = ["Glioma Tumor", "Meningioma Tumor", "No-tumor", "Pituitary Tumor"]
+label_map = {
+    "Glioma": "Glioma Tumor", "Glioma Tumor": "Glioma Tumor",
+    "Meningioma": "Meningioma Tumor", "Meningioma Tumor": "Meningioma Tumor",
+    "No-tumor": "No-tumor", "Normal Brain": "No-tumor", "notumor": "No-tumor",
+    "Pituitary": "Pituitary Tumor", "Pituitary tumor": "Pituitary Tumor",
+    "Pituitary Tumor": "Pituitary Tumor",
+}
+df = pd.read_csv(CSV_FILE)
+df["label"] = df["label"].astype(str).str.strip().map(label_map)
+df = df.dropna(subset=["label"]).drop_duplicates(subset=["image_path", "label"]).copy()
+df["class_index"] = df["label"].map({n: i for i, n in enumerate(CLASS_NAMES)})
+df["dataset"] = df["dataset"].astype(str).str.strip().str.lower().replace({
+    "training": "train", "valid": "validation", "val": "validation", "testing": "test"})
+
+train_df = df[df["dataset"] == "train"]
+val_df = df[df["dataset"] == "validation"]
+test_df = df[df["dataset"] == "test"]
+print(f"Images -> train: {len(train_df)} | validation: {len(val_df)} | test: {len(test_df)}")
+
+
+def load_img(path, label): 
+    img = tf.image.decode_image(tf.io.read_file(path), channels=3, expand_animations=False)
+    img.set_shape([None, None, 3])
+    img = tf.cast(tf.image.resize(img, IMAGE_SIZE), tf.float32)
+    return preprocess_input(img), label          # VGG16-specific preprocessing
+
+
+def make_ds(d, shuffle=False):
+    ds = tf.data.Dataset.from_tensor_slices((d["image_path"].values, d["class_index"].values))
+    if shuffle:
+        ds = ds.shuffle(min(len(d), 512), seed=SEED)
+    return ds.map(load_img, num_parallel_calls=2).batch(BATCH_SIZE).prefetch(1)
+
+
+test_ds = make_ds(test_df)
+
+# ---------------- Model: load or train ----------------
+train_time = None
+epochs_run = None
+
+if os.path.exists(MODEL_PATH):
+    print(f"\nSaved model found -> loading (no training): {MODEL_PATH}")
+    model = load_model(MODEL_PATH)
+else:
+    print("\nNo saved model found -> training once...")
+    train_ds, val_ds = make_ds(train_df, shuffle=True), make_ds(val_df)
+
+    base = VGG16(weights="imagenet", include_top=False,
+                 input_shape=(IMAGE_SIZE[0], IMAGE_SIZE[1], 3))
+    base.trainable = False
+    inp = Input(shape=(IMAGE_SIZE[0], IMAGE_SIZE[1], 3))
+    x = base(inp, training=False)
+    x = GlobalAveragePooling2D()(x)
+    x = Dense(128, activation="relu")(x)
+    x = Dropout(0.5)(x)
+    out = Dense(len(CLASS_NAMES), activation="softmax")(x)
+    model = Model(inp, out)
+    model.compile(optimizer=Adam(LEARNING_RATE),
+                  loss="sparse_categorical_crossentropy", metrics=["accuracy"])
+
+    t0 = time.time()
+    hist = model.fit(train_ds, validation_data=val_ds, epochs=EPOCHS, verbose=1,
+                     callbacks=[EarlyStopping(monitor="val_loss", patience=5, restore_best_weights=True),
+                                ReduceLROnPlateau(monitor="val_loss", factor=0.5, patience=2, min_lr=1e-7)])
+    train_time = time.time() - t0
+    epochs_run = len(hist.history["loss"])
+    model.save(MODEL_PATH)
+
+# ---------------- PERFORMANCE ----------------
+t0 = time.time()
+probs = model.predict(test_ds, verbose=0)
+pred_time = time.time() - t0
+
+y_pred = probs.argmax(axis=1)
+y_true = test_df["class_index"].values
+
+acc = accuracy_score(y_true, y_pred)
+prec = precision_score(y_true, y_pred, average="weighted", zero_division=0)
+rec = recall_score(y_true, y_pred, average="weighted", zero_division=0)
+f1 = f1_score(y_true, y_pred, average="weighted", zero_division=0)
+
+print("\n" + "=" * 60 + "\nPERFORMANCE (test set)\n" + "=" * 60)
+print(f"Accuracy : {acc * 100:.2f}%")
+print(f"Precision: {prec * 100:.2f}%  (weighted)")
+print(f"Recall   : {rec * 100:.2f}%  (weighted)")
+print(f"F1 Score : {f1 * 100:.2f}%  (weighted)")
+print("\n" + classification_report(y_true, y_pred, target_names=CLASS_NAMES, digits=4, zero_division=0))
+
+# ---------------- EFFICIENCY ----------------
+total_params = model.count_params()
+trainable = int(np.sum([np.prod(v.shape) for v in model.trainable_variables]))
+size_mb = os.path.getsize(MODEL_PATH) / (1024 ** 2)
+latency_ms = pred_time / len(test_df) * 1000
+throughput = len(test_df) / pred_time
+
+sample = next(iter(test_ds))[0][:1]        # one image
+_ = model(sample, training=False)          # warm-up
+t0 = time.time()
+for _ in range(50):
+    _ = model(sample, training=False)
+single_ms = (time.time() - t0) / 50 * 1000
+
+print("=" * 60 + "\nEFFICIENCY\n" + "=" * 60)
+print(f"Total parameters      : {total_params:,}")
+print(f"Trainable parameters  : {trainable:,}")
+print(f"Model size on disk    : {size_mb:.2f} MB")
+if train_time:
+    print(f"Training time         : {train_time / 60:.2f} min "
+          f"({train_time / epochs_run:.1f} s/epoch, {epochs_run} epochs)")
+else:
+    print("Training time         : n/a (loaded saved model)")
+print(f"Prediction time (test): {pred_time:.2f} s")
+print(f"Latency (batch)       : {latency_ms:.2f} ms/image")
+print(f"Latency (single image): {single_ms:.2f} ms")
+print(f"Throughput            : {throughput:.2f} images/s")
+
+# one-row CSV so you can compare with EfficientNetB0 easily
+pd.DataFrame([{
+    "Model": "VGG16", "Accuracy_%": acc * 100, "Precision_%": prec * 100,
+    "Recall_%": rec * 100, "F1_%": f1 * 100, "Params": total_params,
+    "Size_MB": size_mb, "Train_min": (train_time / 60) if train_time else None,
+    "Latency_ms": latency_ms, "Throughput_img_s": throughput,
+}]).to_csv("models/vgg16_results.csv", index=False)
+print("\nSaved: models/vgg16_results.csv")
